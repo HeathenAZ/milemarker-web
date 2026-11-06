@@ -129,6 +129,21 @@ async function enableAlerts(){
   renderMaintenance();
 }
 
+// Android app: hand date-based reminders to the phone so they fire even while the app is closed.
+let lastNativeSchedule="";
+function syncNativeSchedule(){
+  if(!(window.MileMarkerNative&&typeof window.MileMarkerNative.scheduleReminders==="function")||!Array.isArray(state.maintItems))return;
+  let now=Date.now(),list=[];
+  live(state.maintItems).forEach(it=>{let s=itemStatus(it);if(!s.dueDate)return;let veh=s.v?.name||"Vehicle";
+    let soon=new Date(s.dueDate);soon.setDate(soon.getDate()-(+it.remindDays||0));soon.setHours(9,0,0,0);
+    let due=new Date(s.dueDate);due.setHours(9,0,0,0);
+    if(+it.remindDays>0&&soon.getTime()>now)list.push({id:it.id+"-soon",title:it.name+" is due soon",body:veh+": due "+fmtDay(s.dueDate)+(s.dueMiles!=null?" or at "+num(s.dueMiles,0)+" mi":""),at:soon.getTime()});
+    if(due.getTime()>now)list.push({id:it.id+"-due",title:it.name+" is overdue",body:veh+": was due today ("+fmtDay(s.dueDate)+")",at:due.getTime()});
+  });
+  list.sort((a,b)=>a.at-b.at);let json=JSON.stringify(list.slice(0,60));
+  if(json===lastNativeSchedule)return;lastNativeSchedule=json;try{window.MileMarkerNative.scheduleReminders(json)}catch(e){console.error(e)}
+}
+
 /* ---------- rendering ---------- */
 const maintFilter=()=>$("#maintVehicle")?.value||"all";
 function row(it,showVehicle){
@@ -201,7 +216,7 @@ $("#maintAlerts").onclick=enableAlerts;
 $("#maintVehicle").onchange=()=>renderMaintenance();
 
 const prevRender=render;
-render=function(){prevRender();try{renderMaintenance()}catch(err){console.error("Maintenance render failed",err)}clearTimeout(window.__maintAlertTimer);window.__maintAlertTimer=setTimeout(checkAlerts,1500)};
+render=function(){prevRender();try{renderMaintenance()}catch(err){console.error("Maintenance render failed",err)}try{syncNativeSchedule()}catch{}clearTimeout(window.__maintAlertTimer);window.__maintAlertTimer=setTimeout(checkAlerts,1500)};
 const prevGo=go;
 go=function(id){prevGo(id);if(id==="maintenance")$("#title").textContent="Maintenance"};
 setInterval(checkAlerts,60*60*1000);
