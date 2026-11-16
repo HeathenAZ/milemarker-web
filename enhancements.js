@@ -106,7 +106,7 @@ function installTripSchedules(){
   if($("#schedules"))return;
   let section=document.createElement("section");
   section.className="view";section.id="schedules";
-  section.innerHTML='<div class="toolbar"><div><p class="eyebrow">FULLY AUTOMATIC TRIP STARTS</p><h2>Schedules</h2><p class="muted">On Android, a trip starts automatically at its scheduled time and a notification confirms tracking began. Set MileMarker location access to <strong>Allow all the time</strong>. Battery saver may delay a start by a few minutes. If no vehicle movement is recorded within 30 minutes, the empty scheduled trip discards itself. Manual trips are unaffected.</p><button class="secondary hide" id="scheduleLocation">Set location to Allow all the time</button></div><div><button class="secondary" id="addBlock">+ Add from block</button> <button class="primary" id="addTripSchedule">+ New schedule</button></div></div><article class="card"><div id="tripScheduleList"></div></article>';
+  section.innerHTML='<div class="toolbar"><div><p class="eyebrow">FULLY AUTOMATIC TRIP STARTS</p><h2>Schedules</h2><p class="muted">On Android, a trip starts automatically at its scheduled time and a notification confirms tracking began. Set MileMarker location access to <strong>Allow all the time</strong>. Battery saver may delay a start by a few minutes. If the car hasn't moved by 30 minutes after the block start, the empty trip discards itself. Manual trips are unaffected.</p><button class="secondary hide" id="scheduleLocation">Set location to Allow all the time</button></div><div><button class="secondary" id="addBlock">+ Add from block</button> <button class="primary" id="addTripSchedule">+ New schedule</button></div></div><article class="card" id="phoneReadiness" style="margin-bottom:14px"></article><article class="card"><div id="tripScheduleList"></div></article>';
   $("#maintenance").before(section);
   document.head.insertAdjacentHTML("beforeend",'<style>.schedule-list{display:grid;gap:12px}.schedule-row{display:grid;grid-template-columns:1fr auto;gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;align-items:center}.schedule-row.off{opacity:.58}.schedule-row p{margin:4px 0}.schedule-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.day-picker{display:flex;gap:6px;flex-wrap:wrap}.day-picker label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:10px;padding:8px}.schedule-note{padding:12px;border-radius:12px;background:#eef5ff;color:#244b78}.dark .schedule-note{background:#142d4c;color:#c9dcff}@media(max-width:740px){.schedule-row{grid-template-columns:1fr}.schedule-actions{justify-content:flex-start}}</style>');
   $("#addBlock").onclick=blockDialog;
@@ -119,7 +119,7 @@ function purposeOptions(selected){return ["Business","Personal","Medical"].map(x
 function endFields(item={}){return '<label class=field>Optional end time<input name=endTime type=time value="'+esc(item.endTime||"")+'"></label><label class=field>At end time<select name=endAction><option value=remind '+(item.endAction!=="finish"?"selected":"")+'>Ask me to finish</option><option value=finish '+(item.endAction==="finish"?"selected":"")+'>Finish automatically</option></select></label>'}
 function blockDialog(){
   let today=localDayKey(Date.now());
-  dialog("Add from Flex block",'<p class="field full schedule-note">Enter the actual Flex block time once. MileMarker will start tracking automatically 45 minutes before the block. If no vehicle movement is recorded within 30 minutes, the empty trip will be discarded.</p><label class=field>Block date<input name=date type=date required value="'+today+'"></label><label class=field>Block start time<input name=blockStartTime type=time required></label><label class="field full">Station<input name=station required placeholder="VAZ1"></label><label class=field>Vehicle<select name=vehicleId>'+scheduleVehicleOptions(state.selectedVehicleId)+'</select></label><label class=field>Purpose<select name=purpose>'+purposeOptions("Business")+'</select></label>'+endFields(),f=>{let station=String(f.get("station")).trim(),blockDate=f.get("date"),blockStartTime=f.get("blockStartTime"),start=new Date(blockDate+"T"+blockStartTime);start.setMinutes(start.getMinutes()-45);let pad=n=>String(n).padStart(2,"0"),startDate=start.getFullYear()+"-"+pad(start.getMonth()+1)+"-"+pad(start.getDate()),startTime=pad(start.getHours())+":"+pad(start.getMinutes()),item={id:"schedule-"+Date.now(),enabled:true,recurrence:"once",date:startDate,startTime,blockDate,blockStartTime,leadMinutes:45,endTime:f.get("endTime")||"",endAction:f.get("endAction"),vehicleId:f.get("vehicleId"),purpose:f.get("purpose"),label:"Flex – "+station,days:[],updatedAt:Date.now()};state.tripSchedules.push(item);save();syncTripSchedules(true);toast(laterBlockSameDay(item)?"Added. An earlier block that day already starts tracking":"Flex block scheduled 45 minutes early")});
+  dialog("Add from Flex block",'<p class="field full schedule-note">Enter the actual Flex block time once. MileMarker will start tracking automatically 45 minutes before the block. If the car hasn't moved by 30 minutes after the block start, the empty trip will be discarded.</p><label class=field>Block date<input name=date type=date required value="'+today+'"></label><label class=field>Block start time<input name=blockStartTime type=time required></label><label class="field full">Station<input name=station required placeholder="VAZ1"></label><label class=field>Vehicle<select name=vehicleId>'+scheduleVehicleOptions(state.selectedVehicleId)+'</select></label><label class=field>Purpose<select name=purpose>'+purposeOptions("Business")+'</select></label>'+endFields(),f=>{let station=String(f.get("station")).trim(),blockDate=f.get("date"),blockStartTime=f.get("blockStartTime"),start=new Date(blockDate+"T"+blockStartTime);start.setMinutes(start.getMinutes()-45);let pad=n=>String(n).padStart(2,"0"),startDate=start.getFullYear()+"-"+pad(start.getMonth()+1)+"-"+pad(start.getDate()),startTime=pad(start.getHours())+":"+pad(start.getMinutes()),item={id:"schedule-"+Date.now(),enabled:true,recurrence:"once",date:startDate,startTime,blockDate,blockStartTime,leadMinutes:45,endTime:f.get("endTime")||"",endAction:f.get("endAction"),vehicleId:f.get("vehicleId"),purpose:f.get("purpose"),label:"Flex – "+station,days:[],updatedAt:Date.now()};state.tripSchedules.push(item);save();syncTripSchedules(true);toast(laterBlockSameDay(item)?"Added. An earlier block that day already starts tracking":"Flex block scheduled 45 minutes early")});
 }
 function scheduleDialog(item={}){
   let editing=!!item.id,today=localDayKey(Date.now()),rec=item.recurrence||"once",dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -158,10 +158,35 @@ mergeSyncData=function(remote,local){let out=scheduleMerge(remote,local);if(mean
 // A scheduled trip discarded by the phone (no movement) must not linger as an active trip here.
 const scheduleNativeUpdate=nativeUpdate;
 nativeUpdate=function(raw){let n;try{n=typeof raw==="string"?JSON.parse(raw):raw}catch{}if(n&&!n.active&&!n.finished&&state.active&&state.active.native&&!nativeFinishing&&!$("#dialog").open&&!(typeof window.MileMarkerNative?.getTripState==="function"&&JSON.parse(window.MileMarkerNative.getTripState()||"{}").active)){state.active=null;clearInterval(timer);resetTracker();persistStateSoon();render();return}return scheduleNativeUpdate(raw)};
+/* Phone readiness: shows whether Android will let schedules start trips, plus what actually happened. */
+function renderPhoneReadiness(){
+  let box=$("#phoneReadiness");if(!box)return;let N=window.MileMarkerNative;
+  if(!native()){box.innerHTML='<p class=eyebrow>PHONE</p><p class=muted>Automatic starts run in the MileMarker Android app. Open this tab on your phone to check it is ready.</p>';return}
+  if(typeof N.getScheduleDiagnostics!=="function"){box.innerHTML='<p class=eyebrow>PHONE</p><p>Update the MileMarker app to version 0.4.4 or newer to check automatic starts.</p>';return}
+  let d={};try{d=JSON.parse(N.getScheduleDiagnostics()||"{}")}catch{}
+  let row=(ok,label,fix,action)=>'<div class="ready-row"><span class="mtag '+(ok?'':'overdue')+'">'+(ok?'OK':'Fix')+'</span><span>'+label+'</span>'+(ok?'':'<button class="route-button" data-ready="'+action+'">'+fix+'</button>')+'</div>';
+  let fmt=t=>new Date(t).toLocaleString("en-US",{weekday:"short",month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  let next=Object.values(d.nextStarts||{}).sort((a,b)=>a.at-b.at)[0];
+  let ready=d.backgroundLocation&&d.notifications&&d.batteryUnrestricted;
+  box.innerHTML='<div class="cardhead"><div><p class=eyebrow>PHONE READINESS</p><h2>'+(ready?'Ready to start trips automatically':'Automatic starts are blocked')+'</h2></div><button class="secondary" data-ready="test">Test in 2 min</button></div>'+
+    row(d.backgroundLocation,'Location: Allow all the time','Fix','location')+
+    row(d.notifications,'Notifications allowed','Fix','notifications')+
+    row(d.batteryUnrestricted,'Battery: Unrestricted (not optimized)','Fix','battery')+
+    row(d.exactAlarms!==false,'Exact alarms allowed','Fix','location')+
+    '<p class=muted style="margin-top:12px">'+(next?'Next automatic start: <strong>'+esc(next.label||"Scheduled trip")+' · '+fmt(next.at)+'</strong>':'No automatic start is armed on this phone yet.')+'</p>'+
+    '<details style="margin-top:8px"><summary class=muted>Recent activity</summary>'+((d.log||[]).slice(0,12).map(l=>'<p class=muted style="margin:4px 0">'+fmt(l.at)+' — '+esc(l.msg)+'</p>').join("")||'<p class=muted>Nothing yet.</p>')+'</details>';
+}
+document.addEventListener("click",e=>{let b=e.target.closest("[data-ready]");if(!b)return;let N=window.MileMarkerNative,a=b.dataset.ready;
+  if(a==="location")N?.openLocationSettings?.();
+  if(a==="notifications")N?.openNotificationSettings?.();
+  if(a==="battery")N?.openBatterySettings?.();
+  if(a==="test"){N?.testScheduledStart?.();toast("Test armed: a trip should start by itself in about 2 minutes. Lock the phone and wait.");setTimeout(renderPhoneReadiness,800)}});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)setTimeout(renderPhoneReadiness,500)});
+document.head.insertAdjacentHTML("beforeend",'<style>.ready-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}</style>');
 installTripSchedules();
 setTimeout(pruneSchedules,2000);setInterval(pruneSchedules,3600000);
 const scheduleRender=render;
-render=function(){scheduleRender();renderTripSchedules();syncTripSchedules()};
+render=function(){scheduleRender();renderTripSchedules();syncTripSchedules();try{renderPhoneReadiness()}catch(e){console.error(e)}};
 renderTripSchedules();
 })();
 
